@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB
+    type: influxdb
+    isDefault: true
+    access: proxy
+    url: http://influxdb:8086
+    jsonData:
+      version: Flux
+      organization: formulae
+      defaultBucket: canedge
+      tlsSkipVerify: true
+    secureJsonData:
+      token: "YHqF1rl1zRMnWb4-MRquvrQwLUQuKCTztU9yBWuKs6QwS6Zvm3OkEMBp4yI18dzIyY3J0DGdslyx8V2GUwJr1Q==" 

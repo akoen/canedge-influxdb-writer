@@ -1,0 +1,36 @@
+version: '2.4'
+
+services:
+
+  influxdb:
+    image: influxdb:2.6
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - 8086:8086
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: canedge-influxdb # Password must be a certain length
+      DOCKER_INFLUXDB_INIT_ORG: formulae
+      DOCKER_INFLUXDB_INIT_BUCKET: canedge
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: "YHqF1rl1zRMnWb4-MRquvrQwLUQuKCTztU9yBWuKs6QwS6Zvm3OkEMBp4yI18dzIyY3J0DGdslyx8V2GUwJr1Q=="
+    volumes:
+      - ./influxdb/db:/var/lib/influxdb2
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+    container_name: grafana
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=canedge
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=pr0ps-trackmap-panel
+  

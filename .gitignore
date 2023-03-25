@@ -14,3 +14,6 @@ build.bat
 *ev6-gps.dbc*
 
 *canedge-influxdb-writer.zip*
+
+/influxdb/db/
+.envrc

@@ -1,9 +1,9 @@
 # -----------------------------------------------
 # specify your InfluxDB details
-influx_bucket = "influx_bucket_name"
-token = "influx_token"
-influx_url = "influx_endpoint"
-org_id = "influx_org_id"
+influx_bucket = "canedge"
+token = "YHqF1rl1zRMnWb4-MRquvrQwLUQuKCTztU9yBWuKs6QwS6Zvm3OkEMBp4yI18dzIyY3J0DGdslyx8V2GUwJr1Q=="
+influx_url = "http://localhost:8086"
+org_id = "formulae"
 
 # -----------------------------------------------
 # specify devices to process from local disk via ["folder/device_id"] or S3 via ["bucket/device_id"]
