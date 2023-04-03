@@ -2,21 +2,18 @@ version: '2.4'
 
 services:
 
-  influxdb:
-    image: influxdb:2.6
-    container_name: influxdb
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: timescaledb
     restart: unless-stopped
     ports:
-      - 8086:8086
+      - 5432:5432
     environment:
-      DOCKER_INFLUXDB_INIT_MODE: setup
-      DOCKER_INFLUXDB_INIT_USERNAME: admin
-      DOCKER_INFLUXDB_INIT_PASSWORD: canedge-influxdb # Password must be a certain length
-      DOCKER_INFLUXDB_INIT_ORG: formulae
-      DOCKER_INFLUXDB_INIT_BUCKET: canedge
-      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: "YHqF1rl1zRMnWb4-MRquvrQwLUQuKCTztU9yBWuKs6QwS6Zvm3OkEMBp4yI18dzIyY3J0DGdslyx8V2GUwJr1Q=="
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     volumes:
-      - ./influxdb/db:/var/lib/influxdb2
+      # - ./timescaledb:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Only run if db directory empty
 
   grafana:
     image: grafana/grafana

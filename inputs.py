@@ -1,9 +1,11 @@
 # -----------------------------------------------
-# specify your InfluxDB details
-influx_bucket = "canedge"
-token = "YHqF1rl1zRMnWb4-MRquvrQwLUQuKCTztU9yBWuKs6QwS6Zvm3OkEMBp4yI18dzIyY3J0DGdslyx8V2GUwJr1Q=="
-influx_url = "http://localhost:8086"
-org_id = "formulae"
+# specify your database details
+db_host = "localhost"
+db_port = 5432
+db_name = "formula"
+db_user = "postgres"
+db_pass = "postgres"
+db_table = "canlog"
 
 # -----------------------------------------------
 # specify devices to process from local disk via ["folder/device_id"] or S3 via ["bucket/device_id"]
@@ -19,7 +21,8 @@ pgn_prefix = False
 bus_prefix = False
 
 # specify resampling frequency. Setting this to "" means no resampling (much slower)
-res = "5S"
+# res = "5S"
+res = ""
 
 # -----------------------------------------------
 # specify whether to load data from S3 (and add server details if relevant)
@@ -32,7 +35,7 @@ region = "s3_region" # only relevant if you are using more recent builds of MinI
 
 # -----------------------------------------------
 # if dynamic = True, data is loaded dynamically based on most recent data in InfluxDB - else default_start is used
-dynamic = True
+dynamic = False
 default_start = "2022-01-01 00:00:00"
 days_offset = 1  # offsets data to start at 'today - days_offset'. Set to None to use original timestamps
 

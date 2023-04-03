@@ -7,12 +7,13 @@ from utils import (
     restructure_data,
     add_signal_prefix
 )
-from utils_db import SetupInflux
+from utils_db import SetupDB
 import inputs as inp
 
 # initialize connection to InfluxDB + get latest data entries per device
-influx = SetupInflux(inp.influx_url, inp.token, inp.org_id, inp.influx_bucket, inp.res)
-start_times = influx.get_start_times(inp.devices, inp.default_start, inp.dynamic)
+# influx = SetupDB(inp.influx_url, inp.token, inp.org_id, inp.influx_bucket, inp.res)
+db = SetupDB(inp.db_host, inp.db_port, inp.db_user, inp.db_pass, inp.db_name, inp.db_table, inp.res)
+start_times = db.get_start_times(inp.devices, inp.default_start, inp.dynamic)
 
 # setup filesystem (local/S3), load DBC files and list log files for processing
 fs = setup_fs(inp.s3, inp.key, inp.secret, inp.endpoint, inp.region, passwords=inp.pw)
@@ -35,4 +36,4 @@ for log_file in log_files:
     df_phys = add_signal_prefix(df_phys, can_id_prefix=inp.can_id_prefix, pgn_prefix=inp.pgn_prefix, bus_prefix=inp.bus_prefix)
 
     df_phys = restructure_data(df_phys,inp.res)
-    influx.write_signals(device_id, df_phys)
+    db.write_signals(device_id, df_phys)

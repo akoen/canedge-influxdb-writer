@@ -1,45 +1,44 @@
-class SetupInflux:
-    def __init__(self, influx_url, token, org_id, influx_bucket, res, debug=False, verbose=True):
-        from influxdb_client import InfluxDBClient
+# TimescaleDB database
+class SetupDB:
+    def __init__(self, db_host, db_port, db_user, db_pass, db_name, table_name, res, debug=False, verbose=True):
+        import psycopg2
 
-        self.influx_url = influx_url
-        self.token = token
-        self.org_id = org_id
-        self.influx_bucket = influx_bucket
+        self.db_host = db_host
+        self.db_port = db_port
+        self.db_user = db_user
+        self.db_pass = db_pass
+        self.db_name = db_name
+        self.table_name = table_name
         self.debug = debug
-        self.verbose = verbose
         self.res = res
-        self.client = InfluxDBClient(url=self.influx_url, token=self.token, org=self.org_id, debug=False)
-        self.test = self.test_influx()
-        return
+        self.verbose = verbose
+        self.conn = psycopg2.connect(host=self.db_host, port=self.db_port, user=self.db_user, password=self.db_pass, database=self.db_name)
 
     def __del__(self):
-        self.client.__del__()
+        self.conn.close()
 
     def get_start_times(self, devices, default_start, dynamic):
-        """Get latest InfluxDB timestamps for devices for use as 'start times' for listing log files from S3"""
+        """Get latest TimescaleDB timestamps for devices for use as 'start times' for listing log files from S3"""
+
         from datetime import datetime, timedelta
         from dateutil.tz import tzutc
-
-        default_start_dt = datetime.strptime(default_start, "%Y-%m-%d %H:%M:%S").replace(tzinfo=tzutc())
         device_ids = [device.split("/")[1] for device in devices]
         start_times = []
 
-        if dynamic == False or self.test == 0:
+        if dynamic == False:
+            default_start_dt = datetime.strptime(default_start, "%Y-%m-%d %H:%M:%S").replace(tzinfo=tzutc())
             for device in device_ids:
-                last_time = default_start_dt
-                start_times.append(last_time)
-        elif self.test != 0:
+                start_times.append(default_start_dt)
+        else:
             for device in device_ids:
-                influx_time = self.client.query_api().query(
-                    f'from(bucket:"{self.influx_bucket}") |> range(start: -100d) |> filter(fn: (r) => r["_measurement"] == "{device}") |> group() |> last()'
-                )
+                last_time_query = f"SELECT time FROM {self.table_name} WHERE device_id = '{device}' ORDER BY time DESC LIMIT 1"
+                last_time_result = self.conn.execute(last_time_query).fetchone()
 
-                if len(influx_time) == 0:
+                if last_time_result is None:
+                    default_start_dt = datetime.strptime(default_start, "%Y-%m-%d %H:%M:%S").replace(tzinfo=tzutc())
                     last_time = default_start_dt
                 else:
-                    last_time = influx_time[0].records[0]["_time"]
-                    last_time = last_time + timedelta(seconds=2)
+                    last_time = last_time_result[0] + timedelta(seconds=2)
 
                 start_times.append(last_time)
 
@@ -47,21 +46,6 @@ class SetupInflux:
                     print(f"Log files will be fetched for {device} from {last_time}")
 
         return start_times
-
-    def add_signal_tags(self, df_signal):
-        """Advanced: This can be used to add custom tags to the signals
-        based on a specific use case logic. In effect, this will
-        split the signal into multiple timeseries
-        """
-        tag_columns = ["tag"]
-
-        def event_test(row):
-            return "event" if row[0] > 1200 else "no event"
-
-        for tag in tag_columns:
-            df_signal[tag] = df_signal.apply(lambda row: event_test(row), axis=1)
-
-        return tag_columns, df_signal
 
     def write_signals(self, device_id, df_phys):
         """Given a device ID and a dataframe of physical values,
@@ -89,72 +73,35 @@ class SetupInflux:
                     if self.verbose:
                         print(f"Signal: {signal} (mean: {round(df_signal[signal].mean(),2)} | records: {len(df_signal)} | resampling: {self.res})")
 
-                    # tag_columns, df_signal = self.add_signal_tags(df_signal)
+                    self.write_db(signal, df_signal)
 
-                    self.write_influx(device_id, df_signal, tag_columns)
+    def write_db(self, name, df):
+        """Helper function to write signal dataframes to TimescaleDB"""
 
-    def write_influx(self, name, df, tag_columns):
-        """Helper function to write signal dataframes to InfluxDB"""
-        from influxdb_client import WriteOptions
 
-        if self.test == 0:
-            print("Please check your InfluxDB credentials")
-            return
+        # df = df.rename(columns={
+        #                "TimeStamp": "time",
+        #                1: "value"
+        #                })
 
-        with self.client.write_api(
-                write_options=WriteOptions(
-                    batch_size=20_000,
-                    flush_interval=1_000,
-                    jitter_interval=0,
-                    retry_interval=5_000,
-                )
-        ) as _write_client:
-            _write_client.write(self.influx_bucket, record=df, data_frame_measurement_name=name,
-                                data_frame_tag_columns=tag_columns)
+        df["message"] = name
+
+        print(df.head())
+
+        print(df.columns.tolist())
+
+        tmp_df = "./tmp_df.csv"
+        df.to_csv(tmp_df, index_label='id', header=False, columns=["message", name])
+        with open(tmp_df, 'r') as f:
+            cursor = self.conn.cursor()
+            cursor.copy_from(f, self.table_name, sep=',')
+
+        self.conn.commit()
+
+        # with self.conn.cursor() as cursor:
+        #     for time, row in df.iterrows():
+        #         cursor.execute(f"INSERT INTO {self.table_name} (time, message, value) VALUES ('{time}', '{name}', '{row[name]}')")
+        #     self.conn.commit()
 
         if self.verbose:
-            print(f"- SUCCESS: {len(df.index)} records of {name} written to InfluxDB\n\n")
-
-        _write_client.__del__()
-
-    def delete_influx(self, device):
-        """Given a 'measurement' name (e.g. device ID), delete the related data from InfluxDB"""
-        start = "1970-01-01T00:00:00Z"
-        stop = "2099-01-01T00:00:00Z"
-
-        delete_api = self.client.delete_api()
-        delete_api.delete(
-            start,
-            stop,
-            f'_measurement="{device}"',
-            bucket=self.influx_bucket,
-            org=self.org_id,
-        )
-
-    def test_influx(self):
-        """Test the connection to your InfluxDB database"""
-        if self.influx_url == "influx_endpoint":
-            result = 0
-        else:
-            try:
-                test = self.client.query_api().query(f'from(bucket:"{self.influx_bucket}") |> range(start: -10s)')
-                result = 1
-            except Exception as err:
-                self.print_influx_error(str(err))
-                result = 0
-
-        return result
-
-    def print_influx_error(self, err):
-        warning = "- WARNING: Unable to write data to InfluxDB |"
-
-        if "CERTIFICATE_VERIFY_FAILED" in err:
-            print(f"{warning} check your influx_url ({self.influx_url})")
-        elif "organization name" in err:
-            print(f"{warning} check your org_id ({self.org_id})")
-        elif "unauthorized access" in err:
-            print(f"{warning} check your influx_url and token")
-        elif "could not find bucket" in err:
-            print(f"{warning} check your influx_bucket ({self.influx_bucket})")
-        else:
-            print(err)
+            print(f"- SUCCESS: {len(df.index)} records of {name} written to TimescaleDB\n\n")
